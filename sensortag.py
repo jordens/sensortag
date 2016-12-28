@@ -153,6 +153,7 @@ class Tag(Device):
                        self.loop)
             setattr(self, T.__name__.lower(), sensor)
             await sensor.start(objs)
+            await sensor.period.characteristic.WriteValue([0xff], {})
 
         # self.io = Sensor(0xaa65, 0xaa65)
         # self.keys = Sensor(0xffe1)
