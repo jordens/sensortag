@@ -1,0 +1,11 @@
+[influxdb_udp]
+host = foo.bar.com
+port = 8089
+
+[log]
+level = INFO
+
+[logger]
+measure = 60
+discover = 100
+timeout = 10
