@@ -3,9 +3,10 @@
 
 ## Requirements
 
-* needs bluez >= 5.42
-* needs python-dbus (and dbus)
-* needs gbulb (https://github.com/m-labs/gbulb.git)
+* python >= 3.5
+* bluez >= 5.42
+* python-dbus (and dbus)
+* gbulb (https://github.com/nathan-hoad/gbulb)
 
 ## Setup
 
