@@ -78,6 +78,8 @@ class Properties:
             path=path)
 
     def _properties_changed_cb(self, interface, changed, invalidated):
+        # for prop, change in changed.items():
+        #     logger.debug("prop change: %s, %s=%s", self.path, prop, change)
         for prop in changed.keys() & self._changed_cbs.keys():
             for f in self._changed_cbs.pop(prop):
                 f.set_result(changed[prop])
@@ -95,25 +97,51 @@ class Properties:
         self._invalidated_cbs[prop].append(fut)
         return fut
 
+    def children(self, objs, interface, cls, overrides={}):
+        children = []
+        for path, ifaces in objs.items():
+            if not (path.startswith(self.path + "/") and interface in ifaces):
+                continue
+            uuid = ifaces[interface]["UUID"]
+            k = overrides.get(uuid, cls)
+            child = k(self.bus, path, self.loop, objs)
+            child.uuid = uuid
+            children.append(child)
+        return children
+
+
+class Descriptor(Properties):
+    interfaces = {"descriptor": DESCRIPTOR}
+
+    def __init__(self, bus, path, loop, objs):
+        super().__init__(bus, path, loop)
+
 
 class Characteristic(Properties):
     interfaces = {"characteristic": CHARACTERISTIC}
 
-    def __init__(self, bus, path, loop):
+    def __init__(self, bus, path, loop, objs):
         super().__init__(bus, path, loop)
-
-    async def start_notify(self):
-        if await self.properties.Get(CHARACTERISTIC, "Notifying"):
-            return
-        await self.characteristic.StartNotify()
 
 
 class Service(Properties):
     interfaces = {"service": SERVICE}
+    characteristic_overrides = {}
+
+    def __init__(self, bus, path, loop, objs):
+        super().__init__(bus, path, loop)
+        self.characteristics = self.children(
+            objs, CHARACTERISTIC, Characteristic,
+            self.characteristic_overrides)
 
 
 class Device(Properties):
     interfaces = {"device": DEVICE}
+    service_overrides = {}
+
+    def populate(self, objs):
+        self.services = self.children(
+            objs, SERVICE, Service, self.service_overrides)
 
 
 class Adapter(Properties):

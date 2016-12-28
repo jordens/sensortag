@@ -33,33 +33,26 @@ def ti_uuid128(ti_uuid16):
 
 class Sensor(Service):
     uuids = None
-    enable = (1).to_bytes(1, "little")
 
-    async def start(self, objs):
-        chars = {ifaces[CHARACTERISTIC]["UUID"]: path
-                 for path, ifaces in objs.items()
-                 if path.startswith(self.path + "/") and
-                 CHARACTERISTIC in ifaces}
-        self.data = Characteristic(
-            self.bus, chars[ti_uuid128(self.uuids.data)], self.loop)
-        self.conf = Characteristic(
-            self.bus, chars[ti_uuid128(self.uuids.conf)], self.loop)
-        self.period = Characteristic(
-            self.bus, chars[ti_uuid128(self.uuids.period)], self.loop)
-        await self.data.start_notify()
+    def __init__(self, bus, path, loop, objs):
+        super().__init__(bus, path, loop, objs)
+        for name in "data conf period".split():
+            chars = [c for c in self.characteristics
+                     if c.uuid == ti_uuid128(getattr(self.uuids, name))]
+            setattr(self, name, chars[0])
 
     def mu_to_si(self, value):
         return value
 
-    async def measure(self):
-        await self.conf.characteristic.WriteValue(self.enable, {})
+    async def measure(self, enable=(1).to_bytes(1, "little")):
+        await self.conf.characteristic.WriteValue(enable, {})
         while True:
             value = await self.data.changed("Value")
             if any(value):
                 break
         value = self.mu_to_si(value)
         await self.conf.characteristic.WriteValue(
-            (0).to_bytes(len(self.enable), "little"), {})
+            (0).to_bytes(len(enable), "little"), {})
         return value
 
 
@@ -108,8 +101,12 @@ class Light(Sensor):
 class Motion(Sensor):
     uuids = TIUUIDs(0xaa80, 0xaa81, 0xaa82, 0xaa83)
     acc_range = 2
-    enable = (0x007f | ([2, 4, 8, 16].index(acc_range) << 8)
-              ).to_bytes(2, "little")
+
+    async def measure(self, enable=None):
+        if enable is None:
+            enable = (0x007f | ([2, 4, 8, 16].index(self.acc_range) << 8)
+                      ).to_bytes(2, "little")
+        return await super().measure(enable)
 
     def mu_to_si(self, value):
         v = [int.from_bytes(value[i:i + 2], "little", signed=True)
@@ -125,6 +122,13 @@ class Motion(Sensor):
 
 class Tag(Device):
     min_rssi = -110
+    service_overrides = {
+        ti_uuid128(Temperature.uuids.service): Temperature,
+        ti_uuid128(Humidity.uuids.service): Humidity,
+        ti_uuid128(Pressure.uuids.service): Pressure,
+        ti_uuid128(Light.uuids.service): Light,
+        ti_uuid128(Motion.uuids.service): Motion,
+    }
 
     def __init__(self, top, path, loop):
         super().__init__(top.bus, path, loop)
@@ -159,16 +163,17 @@ class Tag(Device):
         self.address = await self.properties.Get(DEVICE, "Address")
 
         objs = await self.top.manager.GetManagedObjects()
-        services = {ifaces[SERVICE]["UUID"]: path
-                    for path, ifaces in objs.items()
-                    if path.startswith(self.path + "/") and
-                    SERVICE in ifaces}
-        for T in Temperature, Pressure, Light, Humidity, Motion:
-            sensor = T(self.bus, services[ti_uuid128(T.uuids.service)],
-                       self.loop)
-            setattr(self, T.__name__.lower(), sensor)
-            await sensor.start(objs)
-            await sensor.period.characteristic.WriteValue([0xff], {})
+        super().populate(objs)
+
+        for service in self.services:
+            if not isinstance(service,
+                              tuple(self.service_overrides.values())):
+                continue
+            setattr(self, service.__class__.__name__.lower(), service)
+            await service.period.characteristic.WriteValue([0xff], {})
+            if not await service.data.properties.Get(
+                    CHARACTERISTIC, "Notifying"):
+                await service.data.characteristic.StartNotify()
 
         # self.io = Sensor(0xaa65, 0xaa65)
         # self.keys = Sensor(0xffe1)

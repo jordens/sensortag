@@ -79,11 +79,15 @@ def main():
             for fut in pending:
                 logger.warning("timeout on %s", fut)
                 fut.cancel()
+            msg = []
             for fut in done:
-                if fut.exception():
-                    logger.warning("exception on %s", fut)
-            msg = [i.result() for i in done
-                   if not i.exception() and i.result()]
+                try:
+                    r = fut.result()
+                except:
+                    logger.warning("exception in measure", exc_info=True)
+                else:
+                    if r:
+                        msg.append(r)
             if msg:
                 idb.write_many(msg)
 
