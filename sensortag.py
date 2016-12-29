@@ -120,6 +120,28 @@ class Motion(Sensor):
                 "mag_x": mag[0], "mag_y": mag[1], "mag_z": mag[2]}
 
 
+class ConnectionControl(Service):
+    uuid_service = 0xccc0
+
+    def __init__(self, bus, path, loop, objs):
+        super().__init__(bus, path, loop, objs)
+        for name, uuid in zip("current request disconnect".split(),
+                              (0xccc1, 0xccc2, 0xccc3)):
+            chars = [c for c in self.characteristics
+                     if c.uuid == ti_uuid128(uuid)]
+            setattr(self, name, chars[0])
+
+    async def get_current(self):
+        v = await self.current.characteristic.ReadValue({})
+        v = [int.from_bytes(v[i:i + 2], "little") for i in range(0, 6, 2)]
+        return {"interval": v[0], "latency": v[1], "timeout": v[2]}
+
+    async def set_request(self, interval_max, interval_min, latency, timeout):
+        v = b"".join(vi.to_bytes(2, "little") for vi in
+                     (interval_min, interval_max, latency, timeout))
+        await self.request.characteristic.WriteValue(v, {})
+
+
 class Tag(Device):
     min_rssi = -110
     service_overrides = {
@@ -128,6 +150,10 @@ class Tag(Device):
         ti_uuid128(Pressure.uuids.service): Pressure,
         ti_uuid128(Light.uuids.service): Light,
         ti_uuid128(Motion.uuids.service): Motion,
+        ti_uuid128(ConnectionControl.uuid_service): ConnectionControl,
+        # self.io = Sensor(0xaa65, 0xaa65)
+        # self.keys = Sensor(0xffe1)
+        # self.reg = 0xac01, 0xac02, 0xac03
     }
 
     def __init__(self, top, path, loop):
@@ -170,15 +196,19 @@ class Tag(Device):
                               tuple(self.service_overrides.values())):
                 continue
             setattr(self, service.__class__.__name__.lower(), service)
-            await service.period.characteristic.WriteValue([0xff], {})
-            if not await service.data.properties.Get(
-                    CHARACTERISTIC, "Notifying"):
-                await service.data.characteristic.StartNotify()
+            if hasattr(service, "period"):
+                # 2.55 s measurement period if enabled
+                await service.period.characteristic.WriteValue([0xff], {})
+            if hasattr(service, "data"):
+                if not await service.data.properties.Get(
+                        CHARACTERISTIC, "Notifying"):
+                    await service.data.characteristic.StartNotify()
 
-        # self.io = Sensor(0xaa65, 0xaa65)
-        # self.keys = Sensor(0xffe1)
-        # self.ccs = 0xccc1, 0xccc2, 0xccc3
-        # self.reg = 0xac01, 0xac02, 0xac03
+        await self.connectioncontrol.current.characteristic.StartNotify()
+        # logger.info("%s", await self.connectioncontrol.get_current())
+        # await self.connectioncontrol.set_request(64, 128, 32, 255)
+        # await self.connectioncontrol.current.changed("Value")
+        # logger.info("%s", await self.connectioncontrol.get_current())
 
 
 class TagManager:
