@@ -5,7 +5,8 @@
 
 * python >= 3.5
 * bluez >= 5.42
-* python-dbus (and dbus)
+* python-dbus (and dbus) with glib event loop support
+* python-gi, gir-glib
 * gbulb (https://github.com/nathan-hoad/gbulb)
 
 ## Setup
