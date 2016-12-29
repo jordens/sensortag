@@ -219,29 +219,37 @@ class TagManager:
                 ti_uuid128(Motion.uuids.service) in uuids):
             return
         self.devices[path] = dev = Tag(self, path, self.loop)
-        await dev.start()  # FIXME: can fail
+        await dev.start()
 
     async def start(self):
         for path, ifaces in (await self.manager.GetManagedObjects()).items():
-            await self._maybe_add(path, ifaces)
-
-    async def start_discovery(self):
-        for path, ifaces in (await self.manager.GetManagedObjects()).items():
-            if ADAPTER not in ifaces:
-                continue
-            adapter = Adapter(self.bus, path, self.loop)
-            if not await adapter.properties.Get(ADAPTER, "Powered"):
-                await adapter.properties.Set(ADAPTER, "Powered", True)
-            await adapter.adapter.SetDiscoveryFilter(dict(
-                UUIDs=[
-                    ble_uuid128(Motion.uuids.service),
-                    ti_uuid128(Motion.uuids.service)
-                ],
-                Transport="le"))
-            if not await adapter.properties.Get(ADAPTER, "Discovering"):
-                await adapter.adapter.StartDiscovery()
+            self.loop.create_task(self._maybe_add(path, ifaces))
 
     async def auto_discover(self, interval=60):
         while True:
-            await self.start_discovery()  # FIXME can fail
+            for path, ifaces in (await self.manager.GetManagedObjects()
+                                 ).items():
+                if ADAPTER not in ifaces:
+                    continue
+                adapter = Adapter(self.bus, path, self.loop)
+                if not await adapter.properties.Get(ADAPTER, "Powered"):
+                    try:
+                        await adapter.properties.Set(ADAPTER, "Powered", True)
+                    except dbus.exceptions.DBusException:
+                        logger.warning("could not power on %s", path,
+                                       exc_info=True)
+                        continue
+                await adapter.adapter.SetDiscoveryFilter(dict(
+                    UUIDs=[
+                        ble_uuid128(Motion.uuids.service),
+                        ti_uuid128(Motion.uuids.service)
+                    ],
+                    Transport="le"))
+                if not await adapter.properties.Get(ADAPTER, "Discovering"):
+                    try:
+                        await adapter.adapter.StartDiscovery()
+                    except dbus.exceptions.DBusException:
+                        logger.warning("could start discovery on %s", path,
+                                       exc_info=True)
+                        continue
             await asyncio.sleep(interval)
