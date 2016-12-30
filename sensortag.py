@@ -259,12 +259,12 @@ class TagManager:
             signal_name="InterfacesRemoved")
 
     def _interfaces_added(self, path, ifaces):
-        self.loop.create_task(self._maybe_add(path, ifaces))
+        self._maybe_add(path, ifaces)
 
     def _interfaces_removed(self, path, ifaces):
         pass
 
-    async def _maybe_add(self, path, ifaces):
+    def _maybe_add(self, path, ifaces):
         if DEVICE not in ifaces or path in self.devices:
             return
         uuids = [str(s) for s in ifaces[DEVICE]["UUIDs"]]
@@ -272,11 +272,11 @@ class TagManager:
                 ti_uuid128(Motion.uuids.service) in uuids):
             return
         self.devices[path] = dev = Tag(self, path, self.loop)
-        await dev.start()
+        self.loop.create_task(dev.start())
 
     async def start(self):
         for path, ifaces in (await self.manager.GetManagedObjects()).items():
-            self.loop.create_task(self._maybe_add(path, ifaces))
+            self._maybe_add(path, ifaces)
 
     async def auto_discover(self, interval=60):
         while True:
@@ -289,7 +289,7 @@ class TagManager:
                     try:
                         await adapter.properties.Set(ADAPTER, "Powered", True)
                     except dbus.exceptions.DBusException:
-                        logger.warning("could not power on %s", path,
+                        logger.warning("could not power %s", path,
                                        exc_info=True)
                         continue
                 await adapter.adapter.SetDiscoveryFilter(dict(
