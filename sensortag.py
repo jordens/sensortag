@@ -132,7 +132,9 @@ class ConnectionControl(Service):
             setattr(self, name, chars[0])
 
     async def get_current(self):
-        v = await self.current.characteristic.ReadValue({})
+        return self.mu_to_si(await self.current.characteristic.ReadValue({}))
+
+    def mu_to_si(self, v):
         v = [int.from_bytes(v[i:i + 2], "little") for i in range(0, 6, 2)]
         return {"interval": v[0], "latency": v[1], "timeout": v[2]}
 
@@ -140,6 +142,21 @@ class ConnectionControl(Service):
         v = b"".join(vi.to_bytes(2, "little") for vi in
                      (interval_min, interval_max, latency, timeout))
         await self.request.characteristic.WriteValue(v, {})
+
+
+class BatteryLevel(Service):
+    uuid_service = 0x180f
+
+    def __init__(self, bus, path, loop, objs):
+        super().__init__(bus, path, loop, objs)
+        self.data = [c for c in self.characteristics
+                     if c.uuid == ble_uuid128(0x2a19)][0]
+
+    async def measure(self):
+        return self.mu_to_si(await self.data.characteristic.ReadValue({}))
+
+    def mu_to_si(self, v):
+        return {"battery_level": int.from_bytes(v, "little")}
 
 
 class Tag(Device):
@@ -154,6 +171,7 @@ class Tag(Device):
         # self.io = Sensor(0xaa65, 0xaa65)
         # self.keys = Sensor(0xffe1)
         # self.reg = 0xac01, 0xac02, 0xac03
+        ble_uuid128(BatteryLevel.uuid_service): BatteryLevel,
     }
 
     def __init__(self, top, path, loop):
@@ -204,11 +222,16 @@ class Tag(Device):
                         CHARACTERISTIC, "Notifying"):
                     await service.data.characteristic.StartNotify()
 
+        logger.info("%s: battery %s", self.path,
+                    await self.batterylevel.measure())
         await self.connectioncontrol.current.characteristic.StartNotify()
-        # logger.info("%s", await self.connectioncontrol.get_current())
-        # await self.connectioncontrol.set_request(64, 128, 32, 255)
+        await self.connectioncontrol.set_request(
+            int(.45/1.25e-3), int(.5/1.25e-3), 3, int(6/10e-3))
         # await self.connectioncontrol.current.changed("Value")
+        # await asyncio.sleep(10)
         # logger.info("%s", await self.connectioncontrol.get_current())
+        # await self.connectioncontrol.disconnect.characteristic.WriteValue(
+        #     [1], {})
 
 
 class TagManager:
