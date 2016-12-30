@@ -49,10 +49,10 @@ def main():
             return
         logger.debug("measuring on %s", tag.path)
         data = {}
-        for k in await asyncio.gather(tag.temperature.measure(),
+        for k in await asyncio.gather(# tag.temperature.measure(),
                                       tag.humidity.measure(),
                                       tag.pressure.measure(),
-                                      tag.light.measure(),
+                                      # tag.light.measure(),
                                       # tag.motion.measure(),
                                       ):
             data.update(k)
