@@ -69,7 +69,9 @@ def main():
         m = TagManager()
         await m.start()
         loop.create_task(m.auto_discover(
-            float(cfg["logger"]["discover"])))
+            float(cfg["logger"]["discover_interval"]),
+            float(cfg["logger"]["discover_duration"]),
+        ))
 
         while True:
             await asyncio.sleep(float(cfg["logger"]["measure"]))

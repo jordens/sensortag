@@ -278,7 +278,7 @@ class TagManager:
         for path, ifaces in (await self.manager.GetManagedObjects()).items():
             self._maybe_add(path, ifaces)
 
-    async def auto_discover(self, interval=60):
+    async def auto_discover(self, interval=60, duration=5):
         while True:
             for path, ifaces in (await self.manager.GetManagedObjects()
                                  ).items():
@@ -302,7 +302,14 @@ class TagManager:
                     try:
                         await adapter.adapter.StartDiscovery()
                     except dbus.exceptions.DBusException:
-                        logger.warning("could start discovery on %s", path,
+                        logger.warning("could not start discovery on %s", path,
+                                       exc_info=True)
+                        continue
+                    await asyncio.sleep(duration)
+                    try:
+                        await adapter.adapter.StopDiscovery()
+                    except dbus.exceptions.DBusException:
+                        logger.warning("could not stop discovery on %s", path,
                                        exc_info=True)
                         continue
             await asyncio.sleep(interval)

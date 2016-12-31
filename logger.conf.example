@@ -7,5 +7,6 @@ level = INFO
 
 [logger]
 measure = 50
-discover = 100
 timeout = 20
+discover_interval = 100
+discover_duration = 5
