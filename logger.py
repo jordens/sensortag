@@ -18,6 +18,7 @@
 import logging
 import asyncio
 from configparser import ConfigParser
+import signal
 
 import gbulb
 import dbus
@@ -60,21 +61,15 @@ def main():
         return InfluxLineProtocol.fmt("sensortag", data, tags=dict(
             address=tag.address))
 
-    async def log():
+    async def log(m):
         idb_transport, idb = await loop.create_datagram_endpoint(
             lambda: InfluxLineProtocol(loop),
             remote_addr=(cfg["influxdb_udp"]["host"],
                          int(cfg["influxdb_udp"]["port"])))
 
-        m = TagManager()
         await m.start()
-        loop.create_task(m.auto_discover(
-            float(cfg["logger"]["discover_interval"]),
-            float(cfg["logger"]["discover_duration"]),
-        ))
 
         while True:
-            await asyncio.sleep(float(cfg["logger"]["measure"]))
             done, pending = await asyncio.wait(
                 [measure(tag) for tag in m.devices.values()],
                 timeout=float(cfg["logger"]["timeout"]))
@@ -92,8 +87,31 @@ def main():
                         msg.append(r)
             if msg:
                 idb.write_many(msg)
+            await asyncio.sleep(float(cfg["logger"]["measure"]))
 
-    loop.run_until_complete(log())
+    m = TagManager()
+
+    log_task = loop.create_task(log(m))
+
+    discover_task = loop.create_task(m.auto_discover(
+            float(cfg["logger"]["discover_interval"]),
+            float(cfg["logger"]["discover_duration"]),
+    ))
+
+    def stop():
+        logger.info("stopping")
+        m._auto_discover = False
+        discover_task.cancel()
+        log_task.cancel()
+        loop.stop()
+
+    for sig in signal.SIGINT, signal.SIGTERM:
+        loop.add_signal_handler(sig, stop)
+
+    try:
+        loop.run_forever()
+    finally:
+        loop.close()
 
 
 if __name__ == '__main__':

@@ -235,8 +235,6 @@ class Tag(Device):
 
 
 class TagManager:
-    _auto_discover = False
-
     def __init__(self, loop=None):
         if loop is None:
             loop = asyncio.get_event_loop()
@@ -279,7 +277,8 @@ class TagManager:
             self._maybe_add(path, ifaces)
 
     async def auto_discover(self, interval=60, duration=5):
-        while True:
+        self._auto_discover = True
+        while self._auto_discover:
             for path, ifaces in (await self.manager.GetManagedObjects()
                                  ).items():
                 if ADAPTER not in ifaces:
