@@ -44,7 +44,8 @@ def main():
     async def measure(tag):
         try:
             if not (await tag.properties.Get(DEVICE, "Connected") and
-                    await tag.properties.Get(DEVICE, "ServicesResolved")):
+                    await tag.properties.Get(DEVICE, "ServicesResolved") and
+                    hasattr(tag, "temperature")):
                 return
         except AttributeError:
             return

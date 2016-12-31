@@ -16,7 +16,7 @@
 * `./logger.py`
 * to optimize the BLE connection parameters for low power (while `logger.py` is running):
   1. determine the connection handle `XXXX` using `hcitool con`
-  2. change the connection parameters using `hcitool lecup --handle=XXXX --min 304 --max 320 --latency 4`--timeout 600
+  2. change the connection parameters using `hcitool lecup --handle=XXXX --min 304 --max 320 --latency 0 --timeout 600`
 
 ## Mechanism
 
