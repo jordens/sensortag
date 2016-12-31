@@ -226,7 +226,7 @@ class Tag(Device):
                     await self.batterylevel.measure())
         await self.connectioncontrol.current.characteristic.StartNotify()
         await self.connectioncontrol.set_request(
-            int(.45/1.25e-3), int(.5/1.25e-3), 3, int(6/10e-3))
+            int(.38/1.25e-3), int(.4/1.25e-3), 4, int(6/10e-3))
         # await self.connectioncontrol.current.changed("Value")
         # await asyncio.sleep(10)
         # logger.info("%s", await self.connectioncontrol.get_current())
