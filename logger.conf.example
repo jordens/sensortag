@@ -6,6 +6,6 @@ port = 8089
 level = INFO
 
 [logger]
-measure = 60
+measure = 50
 discover = 100
-timeout = 10
+timeout = 20
