@@ -19,6 +19,7 @@ import logging
 import asyncio
 from configparser import ConfigParser
 import signal
+import time
 
 import gbulb
 import dbus
@@ -50,6 +51,7 @@ def main():
         except AttributeError:
             return
         logger.debug("measuring on %s", tag.path)
+        t0 = time.time()
         data = {}
         for k in await asyncio.gather(# tag.temperature.measure(),
                                       tag.humidity.measure(),
@@ -58,9 +60,10 @@ def main():
                                       # tag.motion.measure(),
                                       ):
             data.update(k)
+        t = round((t0 + time.time())/2)*1000*1000*1000
         logger.info("%s: %s", tag.path, data)
         return InfluxLineProtocol.fmt("sensortag", data, tags=dict(
-            address=tag.address))
+            address=tag.address), timestamp=t)
 
     async def log(m):
         idb_transport, idb = await loop.create_datagram_endpoint(
