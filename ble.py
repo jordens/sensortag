@@ -24,7 +24,7 @@ import dbus
 logger = logging.getLogger(__name__)
 
 MANAGER = "org.freedesktop.DBus.ObjectManager"
-PROPERTIES = "org.freedesktop.DBus.Properties"
+PROPERTIES = dbus.PROPERTIES_IFACE
 
 BLUEZ = "org.bluez"
 ADAPTER = "org.bluez.Adapter1"
@@ -73,7 +73,7 @@ class Properties:
         self._invalidated_cbs = defaultdict(lambda: [])
         bus.add_signal_receiver(
             self._properties_changed_cb,
-            dbus_interface=dbus.PROPERTIES_IFACE,
+            dbus_interface=PROPERTIES,
             signal_name="PropertiesChanged",
             path=path)
 
