@@ -97,13 +97,15 @@ class Properties:
         self._invalidated_cbs[prop].append(fut)
         return fut
 
-    def children(self, objs, interface, cls, overrides={}):
+    def children(self, objs, interface, cls=None, cls_map=None):
         children = []
         for path, ifaces in objs.items():
             if not (path.startswith(self.path + "/") and interface in ifaces):
                 continue
             uuid = ifaces[interface]["UUID"]
-            k = overrides.get(uuid, cls)
+            k = cls
+            if cls_map is not None:
+                k = cls_map.get(uuid, cls)
             child = k(self.bus, path, self.loop, objs)
             child.uuid = uuid
             children.append(child)
@@ -126,22 +128,18 @@ class Characteristic(Properties):
 
 class Service(Properties):
     interfaces = {"service": SERVICE}
-    characteristic_overrides = {}
 
     def __init__(self, bus, path, loop, objs):
         super().__init__(bus, path, loop)
         self.characteristics = self.children(
-            objs, CHARACTERISTIC, Characteristic,
-            self.characteristic_overrides)
+            objs, CHARACTERISTIC, cls=Characteristic)
 
 
 class Device(Properties):
     interfaces = {"device": DEVICE}
-    service_overrides = {}
 
-    def populate(self, objs):
-        self.services = self.children(
-            objs, SERVICE, Service, self.service_overrides)
+    def populate(self, objs, cls=Service, cls_map=None):
+        self.services = self.children(objs, SERVICE, cls=cls, cls_map=cls_map)
 
 
 class Adapter(Properties):

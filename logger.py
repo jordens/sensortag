@@ -20,6 +20,7 @@ import asyncio
 from configparser import ConfigParser
 import signal
 import time
+from argparse import ArgumentParser
 
 import gbulb
 import dbus
@@ -33,12 +34,16 @@ logger = logging.getLogger(__name__)
 
 
 def main():
+    p = ArgumentParser()
+    p.add_argument("config")
+    args = p.parse_args()
+
+    cfg = ConfigParser()
+    cfg.read(args.config)
+
     gbulb.install()
     dbus.mainloop.glib.DBusGMainLoop(set_as_default=True)
     loop = asyncio.get_event_loop()
-
-    cfg = ConfigParser()
-    cfg.read("logger.conf")
 
     logging.basicConfig(level=cfg["log"]["level"])
 

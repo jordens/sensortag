@@ -161,7 +161,7 @@ class BatteryLevel(Service):
 
 class Tag(Device):
     min_rssi = -110
-    service_overrides = {
+    cls_map = {
         ti_uuid128(Temperature.uuids.service): Temperature,
         ti_uuid128(Humidity.uuids.service): Humidity,
         ti_uuid128(Pressure.uuids.service): Pressure,
@@ -190,7 +190,7 @@ class Tag(Device):
             self.loop.create_task(self.populate())
 
     async def start(self):
-        if not (await self.properties.Get(DEVICE, "Connected") and
+        if not (await self.properties.Get(DEVICE, "Connected") or
                 self.connecting):
             logger.debug("Connecting %s", self.path)
             self.connecting = True
@@ -207,11 +207,10 @@ class Tag(Device):
         self.address = await self.properties.Get(DEVICE, "Address")
 
         objs = await self.top.manager.GetManagedObjects()
-        super().populate(objs)
+        super().populate(objs, cls_map=self.cls_map)
 
         for service in self.services:
-            if not isinstance(service,
-                              tuple(self.service_overrides.values())):
+            if not isinstance(service, tuple(self.cls_map.values())):
                 continue
             setattr(self, service.__class__.__name__.lower(), service)
             if hasattr(service, "period"):
@@ -226,7 +225,7 @@ class Tag(Device):
                     await self.batterylevel.measure())
         await self.connectioncontrol.current.characteristic.StartNotify()
         await self.connectioncontrol.set_request(
-            int(.38/1.25e-3), int(.4/1.25e-3), 4, int(6/10e-3))
+            int(.38/1.25e-3), int(.4/1.25e-3), 0, int(6/10e-3))
         # await self.connectioncontrol.current.changed("Value")
         # await asyncio.sleep(10)
         # logger.info("%s", await self.connectioncontrol.get_current())
@@ -247,7 +246,7 @@ class TagManager:
             self.bus.get_object(BLUEZ, "/"),
             MANAGER,
             loop)
-        self.bus.add_signal_receiver(
+        self.bus.add_signal_receiver(  # TODO: disconnect
             self._interfaces_added,
             dbus_interface=MANAGER,
             signal_name="InterfacesAdded")
